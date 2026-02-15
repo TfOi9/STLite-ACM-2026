@@ -1,3 +1,7 @@
+cmake_minimum_required(VERSION 3.10)
+project(vector)
+set(CMAKE_CXX_STANDARD 20)
+
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/data)
 add_executable(vector_one ${CMAKE_CURRENT_SOURCE_DIR}/data/one/code.cpp)
@@ -7,6 +11,7 @@ add_executable(vector_four ${CMAKE_CURRENT_SOURCE_DIR}/data/four/code.cpp)
 add_executable(vector_five ${CMAKE_CURRENT_SOURCE_DIR}/data/five/code.cpp)
 add_executable(vector_six ${CMAKE_CURRENT_SOURCE_DIR}/data/six/code.cpp)
 add_executable(vector_seven ${CMAKE_CURRENT_SOURCE_DIR}/data/seven/code.cpp)
+enable_testing()
 add_test(NAME vector_one COMMAND sh -c "${CMAKE_CURRENT_BINARY_DIR}/vector_one >/tmp/one_out.txt\
         && diff -u ${CMAKE_CURRENT_SOURCE_DIR}/data/one/answer.txt /tmp/one_out.txt>/tmp/one_diff.txt")
 add_test(NAME vector_two COMMAND sh -c "${CMAKE_CURRENT_BINARY_DIR}/vector_two >/tmp/two_out.txt\

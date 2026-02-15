@@ -13,3 +13,10 @@ CMakeUserPresets.json
 
 build/
 .cache/
+.clangd
+.DS_Store
+*.in
+*.out
+*.ans
+*.err
+*.log
