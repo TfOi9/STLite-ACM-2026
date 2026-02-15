@@ -155,6 +155,7 @@ public:
 		}
 		heap_node *del = root_;
 		root_ = merge(root_->left, root_->right);
+		delete del;
 		size_--;
 	}
 
