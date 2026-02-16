@@ -30,10 +30,11 @@ private:
     value_type keypair;
     tree_node *ls;
     tree_node *rs;
+    tree_node *parent;
     int height;
 
-    tree_node(const value_type& kp, int h = 0) : keypair(kp), height(h), ls(nullptr), rs(nullptr) {}
-    tree_node(const Key& key, const T& t, int h = 0) : keypair(key, t), height(0), ls(nullptr), rs(nullptr) {}
+    tree_node(const value_type& kp, int h = 0, tree_node *p = nullptr) : keypair(kp), ls(nullptr), rs(nullptr), parent(p), height(h) {}
+    tree_node(const Key& key, const T& t, int h = 0, tree_node *p = nullptr) : keypair(key, t), ls(nullptr), rs(nullptr), parent(p), height(h) {}
   };
 
   tree_node *root_;
@@ -60,31 +61,67 @@ private:
 
   void copy(tree_node *dst, tree_node *src) {
     if (src->ls) {
-      dst->ls = new tree_node(*(src->ls));
+      dst->ls = new tree_node(src->ls->keypair, src->ls->height, dst);
       copy(dst->ls, src->ls);
     }
     if (src->rs) {
-      dst->rs = new tree_node(*(src->rs));
+      dst->rs = new tree_node(src->rs->keypair, src->rs->height, dst);
       copy(dst->rs, src->rs);
     }
   }
 
+  tree_node* leftmost(tree_node *t) const {
+    if (t == nullptr) {
+      return nullptr;
+    }
+    while (t->ls) {
+      t = t->ls;
+    }
+    return t;
+  }
+
+  tree_node* rightmost(tree_node *t) const {
+    if (t == nullptr) {
+      return nullptr;
+    }
+    while (t->rs) {
+      t = t->rs;
+    }
+    return t;
+  }
+
   void LL(tree_node *&t) {
-    tree_node *l=t->ls;
-    t->ls=l->rs;
-    l->rs=t;
-    pushup(t);
+    tree_node *old = t;
+    tree_node *l = t->ls;
+    tree_node *beta = l->rs;
+    tree_node *old_parent = old->parent;
+    l->parent = old_parent;
+    old->ls = beta;
+    if (beta) {
+      beta->parent = old;
+    }
+    l->rs = old;
+    old->parent = l;
+    pushup(old);
     pushup(l);
-    t=l;
+    t = l;
   }
 
   void RR(tree_node *&t) {
-    tree_node *r=t->rs;
-    t->rs=r->ls;
-    r->ls=t;
-    pushup(t);
+    tree_node *old = t;
+    tree_node *r = t->rs;
+    tree_node *beta = r->ls;
+    tree_node *old_parent = old->parent;
+    r->parent = old_parent;
+    old->rs = beta;
+    if (beta) {
+      beta->parent = old;
+    }
+    r->ls = old;
+    old->parent = r;
+    pushup(old);
     pushup(r);
-    t=r;
+    t = r;
   }
 
   void LR(tree_node *&t) {
@@ -97,17 +134,21 @@ private:
     RR(t);
   }
 
-  void insert(const value_type& keypair, tree_node *&t) {
+  tree_node* insert(const value_type& keypair, tree_node *&t, tree_node *parent, bool &inserted) {
     if (t == nullptr) {
-      t = new tree_node(keypair);
+      t = new tree_node(keypair, 0, parent);
       size_++;
-      return;
+      inserted = true;
+      return t;
     }
     bool is_less, is_greater;
     is_less = comp_(keypair.first, t->keypair.first);
     is_greater = comp_(t->keypair.first, keypair.first);
     if (is_less) {
-      insert(keypair, t->ls);
+      tree_node *ret = insert(keypair, t->ls, t, inserted);
+      if (!inserted) {
+        return ret;
+      }
       if (height(t->ls) - height(t->rs) == 2) {
         if (comp_(keypair.first, t->ls->keypair.first)) {
           LL(t);
@@ -116,9 +157,14 @@ private:
           LR(t);
         }
       }
+      pushup(t);
+      return ret;
     }
-    else if (is_greater) {
-      insert(keypair, t->rs);
+    if (is_greater) {
+      tree_node *ret = insert(keypair, t->rs, t, inserted);
+      if (!inserted) {
+        return ret;
+      }
       if (height(t->rs) - height(t->ls) == 2) {
         if (comp_(t->rs->keypair.first, keypair.first)) {
           RR(t);
@@ -127,8 +173,11 @@ private:
           RL(t);
         }
       }
+      pushup(t);
+      return ret;
     }
-    pushup(t);
+    inserted = false;
+    return t;
   }
 
   bool erase(const Key& k, tree_node *&t) {
@@ -154,9 +203,19 @@ private:
       }
       if (parent != t) {
         parent->ls = succ->rs;
+        if (parent->ls) {
+          parent->ls->parent = parent;
+        }
         succ->rs = t->rs;
+        if (succ->rs) {
+          succ->rs->parent = succ;
+        }
       }
       succ->ls = t->ls;
+      if (succ->ls) {
+        succ->ls->parent = succ;
+      }
+      succ->parent = t->parent;
       delete t;
       t = succ;
       size_--;
@@ -166,6 +225,9 @@ private:
     else {
       tree_node *del = t;
       t = t->ls ? t->ls : t->rs;
+      if (t) {
+        t->parent = del->parent;
+      }
       delete del;
       size_--;
       return 0;
@@ -226,77 +288,50 @@ private:
   }
 
   tree_node* find(const Key& k, tree_node *t) const {
-    if (t == nullptr) {
-      return nullptr;
+    while (t) {
+      if (comp_(k, t->keypair.first)) {
+        t = t->ls;
+      }
+      else if (comp_(t->keypair.first, k)) {
+        t = t->rs;
+      }
+      else {
+        return t;
+      }
     }
-    if (comp_(k, t->keypair.first)) {
-      return find(k, t->ls);
-    }
-    else if (comp_(t->keypair.first, k)) {
-      return find(k, t->rs);
-    }
-    else {
-      return t;
-    }
+    return nullptr;
   }
 
   tree_node* previous_element(tree_node *t) const {
     if (t == nullptr) {
-      tree_node *cur = root_;
-      if (cur == nullptr) {
-        return nullptr;
-      }
-      while (cur->rs) {
-        cur = cur->rs;
-      }
-      return cur;
+      return rightmost(root_);
     }
-    tree_node *temp = t->ls;
-    if (temp == nullptr) {
-      tree_node *ret = nullptr;
-      tree_node *cur = root_;
-      while (cur) {
-        if (comp_(cur->keypair.first, t->keypair.first)) {
-          ret = cur;
-          cur = cur->rs;
-        }
-        else if (comp_(t->keypair.first, cur->keypair.first)) {
-          cur = cur->ls;
-        }
-        else break;
-      }
-      return ret;
+    if (t->ls) {
+      return rightmost(t->ls);
     }
-    while (temp->rs) {
-      temp = temp->rs;
+    tree_node *cur = t;
+    tree_node *par = cur->parent;
+    while (par && par->ls == cur) {
+      cur = par;
+      par = par->parent;
     }
-    return temp;
+    return par;
   }
 
   tree_node* next_element(tree_node *t) const {
     if (t == nullptr) {
       return nullptr;
     }
-    tree_node *temp = t->rs;
-    if (temp == nullptr) {
-      tree_node *ret = nullptr;
-      tree_node *cur = root_;
-      while (cur) {
-        if (comp_(t->keypair.first, cur->keypair.first)) {
-          ret = cur;
-          cur = cur->ls;
-        }
-        else if (comp_(cur->keypair.first, t->keypair.first)) {
-          cur = cur->rs;
-        }
-        else break;
-      }
-      return ret;
+    if (t->rs) {
+      return leftmost(t->rs);
     }
-    while (temp->ls) {
-      temp = temp->ls;
+    tree_node *cur = t;
+    tree_node *par = cur->parent;
+    while (par && par->rs == cur) {
+      cur = par;
+      par = par->parent;
     }
-    return temp;
+    return par;
   }
 
 public:
@@ -587,12 +622,12 @@ public:
    */
   map() : root_(nullptr), size_(0), comp_() {}
 
-  map(const map &other) : size_(other.size_), comp_() {
+  map(const map &other) : size_(other.size_), comp_(other.comp_) {
     if (other.root_ == nullptr) {
       root_ = nullptr;
       return;
     }
-    root_ = new tree_node(*other.root_);
+    root_ = new tree_node(other.root_->keypair, other.root_->height, nullptr);
     copy(root_, other.root_);
   }
 
@@ -607,11 +642,12 @@ public:
       release(root_);
     }
     size_ = other.size_;
+    comp_ = other.comp_;
     if (other.root_ == nullptr) {
       root_ = nullptr;
       return *this;
     }
-    root_ = new tree_node(*other.root_);
+    root_ = new tree_node(other.root_->keypair, other.root_->height, nullptr);
     copy(root_, other.root_);
     return *this;
   }
@@ -654,11 +690,8 @@ public:
    *   performing an insertion if such key does not already exist.
    */
   T &operator[](const Key &key) {
-    tree_node *pos = find(key, root_);
-    if (pos == nullptr) {
-      insert(pair(key, T()), root_);
-      return find(key, root_)->keypair.second;
-    }
+    bool inserted = false;
+    tree_node *pos = insert(value_type(key, T()), root_, nullptr, inserted);
     return pos->keypair.second;
   }
 
@@ -677,14 +710,11 @@ public:
    * return a iterator to the beginning
    */
   iterator begin() {
-    tree_node *temp = root_;
+    tree_node *temp = leftmost(root_);
     if (temp == nullptr) {
       iterator it;
       it.fa_ = this;
       return it;
-    }
-    while (temp->ls) {
-      temp = temp->ls;
     }
     iterator it;
     it.fa_ = this;
@@ -693,14 +723,11 @@ public:
   }
 
   const_iterator cbegin() const {
-    tree_node *temp = root_;
+    tree_node *temp = leftmost(root_);
     if (temp == nullptr) {
       const_iterator it;
       it.fa_ = this;
       return it;
-    }
-    while (temp->ls) {
-      temp = temp->ls;
     }
     const_iterator it;
     it.fa_ = this;
@@ -757,19 +784,12 @@ public:
    *   the second one is true if insert successfully, or false.
    */
   pair<iterator, bool> insert(const value_type &value) {
-    tree_node *pos = find(value.first, root_);
-    if (pos) {
-      iterator it;
-      it.fa_ = this;
-      it.ptr_ = pos;
-      return pair(it, false);
-    }
-    insert(value, root_);
-    pos = find(value.first, root_);
+    bool inserted = false;
+    tree_node *pos = insert(value, root_, nullptr, inserted);
     iterator it;
     it.fa_ = this;
     it.ptr_ = pos;
-    return pair(it, true);
+    return pair(it, inserted);
   }
 
   /**
