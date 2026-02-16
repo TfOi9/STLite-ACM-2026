@@ -146,16 +146,22 @@ private:
       stop = erase(k, t->rs);
     }
     else if (t->ls && t->rs) {
-      tree_node *temp = t->rs;
-      while (temp->ls) {
-        temp = temp->ls;
+      tree_node *parent = t;
+      tree_node *succ = t->rs;
+      while (succ->ls) {
+        parent = succ;
+        succ = succ->ls;
       }
-      t->keypair.~value_type();
-      new (&(t->keypair)) value_type(temp->keypair);
-      // t->keypair.first = temp->keypair.first;
-      // t->keypair.second = temp->keypair.second;
-      erase(t->keypair.first, t->rs);
-      subt = 2;
+      if (parent != t) {
+        parent->ls = succ->rs;
+        succ->rs = t->rs;
+      }
+      succ->ls = t->ls;
+      delete t;
+      t = succ;
+      size_--;
+      pushup(t);
+      return 0;
     }
     else {
       tree_node *del = t;
@@ -235,9 +241,31 @@ private:
   }
 
   tree_node* previous_element(tree_node *t) const {
+    if (t == nullptr) {
+      tree_node *cur = root_;
+      if (cur == nullptr) {
+        return nullptr;
+      }
+      while (cur->rs) {
+        cur = cur->rs;
+      }
+      return cur;
+    }
     tree_node *temp = t->ls;
     if (temp == nullptr) {
-      return nullptr;
+      tree_node *ret = nullptr;
+      tree_node *cur = root_;
+      while (cur) {
+        if (comp_(cur->keypair.first, t->keypair.first)) {
+          ret = cur;
+          cur = cur->rs;
+        }
+        else if (comp_(t->keypair.first, cur->keypair.first)) {
+          cur = cur->ls;
+        }
+        else break;
+      }
+      return ret;
     }
     while (temp->rs) {
       temp = temp->rs;
@@ -246,9 +274,24 @@ private:
   }
 
   tree_node* next_element(tree_node *t) const {
+    if (t == nullptr) {
+      return nullptr;
+    }
     tree_node *temp = t->rs;
     if (temp == nullptr) {
-      return nullptr;
+      tree_node *ret = nullptr;
+      tree_node *cur = root_;
+      while (cur) {
+        if (comp_(t->keypair.first, cur->keypair.first)) {
+          ret = cur;
+          cur = cur->ls;
+        }
+        else if (comp_(cur->keypair.first, t->keypair.first)) {
+          cur = cur->rs;
+        }
+        else break;
+      }
+      return ret;
     }
     while (temp->ls) {
       temp = temp->ls;
@@ -293,6 +336,9 @@ public:
      * TODO iter++
      */
     iterator operator++(int) {
+      if (fa_ == nullptr || ptr_ == nullptr) {
+        throw invalid_iterator();
+      }
       iterator temp = *this;
       ptr_ = fa_->next_element(ptr_);
       return temp;
@@ -302,6 +348,9 @@ public:
      * TODO ++iter
      */
     iterator &operator++() {
+      if (fa_ == nullptr || ptr_ == nullptr) {
+        throw invalid_iterator();
+      }
       ptr_ = fa_->next_element(ptr_);
       return *this;
     }
@@ -311,7 +360,21 @@ public:
      */
     iterator operator--(int) {
       iterator temp = *this;
-      ptr_ = fa_->previous_element(ptr_);
+      if (fa_ == nullptr) {
+        throw invalid_iterator();
+      }
+      if (ptr_ == nullptr) {
+        ptr_ = fa_->previous_element(nullptr);
+        if (ptr_ == nullptr) {
+          throw invalid_iterator();
+        }
+        return temp;
+      }
+      tree_node *pre = fa_->previous_element(ptr_);
+      if (pre == nullptr) {
+        throw invalid_iterator();
+      }
+      ptr_ = pre;
       return temp;
     }
 
@@ -319,7 +382,21 @@ public:
      * TODO --iter
      */
     iterator &operator--() {
-      ptr_ = fa_->previous_element(ptr_);
+      if (fa_ == nullptr) {
+        throw invalid_iterator();
+      }
+      if (ptr_ == nullptr) {
+        ptr_ = fa_->previous_element(nullptr);
+        if (ptr_ == nullptr) {
+          throw invalid_iterator();
+        }
+        return *this;
+      }
+      tree_node *pre = fa_->previous_element(ptr_);
+      if (pre == nullptr) {
+        throw invalid_iterator();
+      }
+      ptr_ = pre;
       return *this;
     }
 
@@ -327,26 +404,29 @@ public:
      * a operator to check whether two iterators are same (pointing to the same memory).
      */
     value_type &operator*() const {
+      if (ptr_ == nullptr) {
+        throw invalid_iterator();
+      }
       return ptr_->keypair;
     }
 
     bool operator==(const iterator &rhs) const {
-      return ptr_ == rhs.ptr_;
+      return ptr_ == rhs.ptr_ && fa_ == rhs.fa_;
     }
 
     bool operator==(const const_iterator &rhs) const {
-      return ptr_ == rhs.ptr_;
+      return ptr_ == rhs.ptr_ && fa_ == rhs.fa_;
     }
 
     /**
      * some other operator for iterator.
      */
     bool operator!=(const iterator &rhs) const {
-      return ptr_ != rhs.ptr_;
+      return ptr_ != rhs.ptr_ || fa_ != rhs.fa_;
     }
 
     bool operator!=(const const_iterator &rhs) const {
-      return ptr_ != rhs.ptr_;
+      return ptr_ != rhs.ptr_ || fa_ != rhs.fa_;
     }
 
     /**
@@ -354,7 +434,10 @@ public:
      * See <http://kelvinh.github.io/blog/2013/11/20/overloading-of-member-access-operator-dash-greater-than-symbol-in-cpp/> for help.
      */
     value_type *operator->() const
-    noexcept {
+    {
+      if (ptr_ == nullptr) {
+        throw invalid_iterator();
+      }
       return &(ptr_->keypair);
     }
   };
@@ -393,6 +476,9 @@ public:
      * TODO iter++
      */
     const_iterator operator++(int) {
+      if (fa_ == nullptr || ptr_ == nullptr) {
+        throw invalid_iterator();
+      }
       const_iterator temp = *this;
       ptr_ = fa_->next_element(ptr_);
       return temp;
@@ -402,6 +488,9 @@ public:
      * TODO ++iter
      */
     const_iterator &operator++() {
+      if (fa_ == nullptr || ptr_ == nullptr) {
+        throw invalid_iterator();
+      }
       ptr_ = fa_->next_element(ptr_);
       return *this;
     }
@@ -411,7 +500,21 @@ public:
      */
     const_iterator operator--(int) {
       const_iterator temp = *this;
-      ptr_ = fa_->previous_element(ptr_);
+      if (fa_ == nullptr) {
+        throw invalid_iterator();
+      }
+      if (ptr_ == nullptr) {
+        ptr_ = fa_->previous_element(nullptr);
+        if (ptr_ == nullptr) {
+          throw invalid_iterator();
+        }
+        return temp;
+      }
+      tree_node *pre = fa_->previous_element(ptr_);
+      if (pre == nullptr) {
+        throw invalid_iterator();
+      }
+      ptr_ = pre;
       return temp;
     }
 
@@ -419,7 +522,21 @@ public:
      * TODO --iter
      */
     const_iterator &operator--() {
-      ptr_ = fa_->previous_element(ptr_);
+      if (fa_ == nullptr) {
+        throw invalid_iterator();
+      }
+      if (ptr_ == nullptr) {
+        ptr_ = fa_->previous_element(nullptr);
+        if (ptr_ == nullptr) {
+          throw invalid_iterator();
+        }
+        return *this;
+      }
+      tree_node *pre = fa_->previous_element(ptr_);
+      if (pre == nullptr) {
+        throw invalid_iterator();
+      }
+      ptr_ = pre;
       return *this;
     }
 
@@ -427,26 +544,29 @@ public:
      * a operator to check whether two iterators are same (pointing to the same memory).
      */
     const value_type &operator*() const {
+      if (ptr_ == nullptr) {
+        throw invalid_iterator();
+      }
       return ptr_->keypair;
     }
 
     bool operator==(const iterator &rhs) const {
-      return ptr_ == rhs.ptr_;
+      return ptr_ == rhs.ptr_ && fa_ == rhs.fa_;
     }
 
     bool operator==(const const_iterator &rhs) const {
-      return ptr_ == rhs.ptr_;
+      return ptr_ == rhs.ptr_ && fa_ == rhs.fa_;
     }
 
     /**
      * some other operator for iterator.
      */
     bool operator!=(const iterator &rhs) const {
-      return ptr_ != rhs.ptr_;
+      return ptr_ != rhs.ptr_ || fa_ != rhs.fa_;
     }
 
     bool operator!=(const const_iterator &rhs) const {
-      return ptr_ != rhs.ptr_;
+      return ptr_ != rhs.ptr_ || fa_ != rhs.fa_;
     }
 
     /**
@@ -454,7 +574,10 @@ public:
      * See <http://kelvinh.github.io/blog/2013/11/20/overloading-of-member-access-operator-dash-greater-than-symbol-in-cpp/> for help.
      */
     const value_type *operator->() const
-    noexcept {
+    {
+      if (ptr_ == nullptr) {
+        throw invalid_iterator();
+      }
       return &(ptr_->keypair);
     }
   };
@@ -465,6 +588,10 @@ public:
   map() : root_(nullptr), size_(0), comp_() {}
 
   map(const map &other) : size_(other.size_), comp_() {
+    if (other.root_ == nullptr) {
+      root_ = nullptr;
+      return;
+    }
     root_ = new tree_node(*other.root_);
     copy(root_, other.root_);
   }
@@ -480,6 +607,10 @@ public:
       release(root_);
     }
     size_ = other.size_;
+    if (other.root_ == nullptr) {
+      root_ = nullptr;
+      return *this;
+    }
     root_ = new tree_node(*other.root_);
     copy(root_, other.root_);
     return *this;
@@ -616,6 +747,7 @@ public:
       release(root_);
     }
     size_ = 0;
+    root_ = nullptr;
   }
 
   /**
@@ -637,7 +769,7 @@ public:
     iterator it;
     it.fa_ = this;
     it.ptr_ = pos;
-    return pair(it, false);
+    return pair(it, true);
   }
 
   /**
