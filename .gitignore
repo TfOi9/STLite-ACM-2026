@@ -12,6 +12,7 @@ _deps
 CMakeUserPresets.json
 
 build/
+tests/
 .cache/
 .clangd
 .DS_Store
