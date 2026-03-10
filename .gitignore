@@ -15,6 +15,9 @@ build/
 tests/
 .cache/
 .clangd
+.clang_format
+.vscode
+.idea
 .DS_Store
 *.in
 *.out
