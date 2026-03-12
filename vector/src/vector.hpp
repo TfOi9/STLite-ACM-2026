@@ -4,7 +4,6 @@
 #include <strings.h>
 #include "exceptions.hpp"
 
-#include <climits>
 #include <cstddef>
 
 namespace sjtu
