@@ -141,7 +141,11 @@ public:
 	 */
 	void push(const T &e) {
 		heap_node *new_node = new heap_node(e);
-		root_ = merge(root_, new_node);
+		try { root_ = merge(root_, new_node); }
+		catch(...) {
+			delete new_node;
+			throw;
+		}
 		size_++;
 	}
 
@@ -182,10 +186,19 @@ public:
 	 * @param other the priority_queue to be merged.
 	 */
 	void merge(priority_queue &other) {
+		if (this == &other) return;
 		root_ = merge(root_, other.root_);
 		size_ += other.size_;
 		other.size_ = 0;
 		other.root_ = nullptr;
+	}
+
+	void clear() {
+		if (root_) {
+			release(root_);
+			root_ = nullptr;
+		}
+		size_ = 0;
 	}
 };
 
